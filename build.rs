@@ -138,8 +138,15 @@ impl ParseCallbacks for Rustifier {
 fn main() {
     let hfs = var("HFS").expect("HFS variable is not set");
     let include_dir = Path::new(&hfs).join("toolkit/include/HAPI");
-    let out_path = PathBuf::from(var("OUT_DIR").unwrap()).join("bindings.rs");
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rustc-link-lib=dylib=HAPIL");
+    if cfg!(target_os = "macos"){
+        let lib_dir = Path::new(&hfs).parent().unwrap().join("Libraries");
+        println!("cargo:rustc-link-search=native={}", lib_dir.to_string_lossy());
+    } else {
+        println!("cargo:rustc-link-search=native={}/dsolib", hfs);
+    }
+    let out_path = PathBuf::from(var("OUT_DIR").unwrap()).join("bindings.rs");
 
     let builder = bindgen::Builder::default()
         .header("wrapper.h")
