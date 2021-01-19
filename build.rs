@@ -11,9 +11,9 @@ use once_cell::sync::Lazy;
 
 #[derive(Debug, Copy, Clone)]
 pub enum StripMode {
-    // 1: FOO_BAR_ZOO => BAR_ZOO
+    /// Strip N items at front, e.g N=1: FOO_BAR_ZOO => BAR_ZOO
     StripFront(u8),
-    // 1: FOO_BAR_ZOO => ZOO
+    /// Keeps N items at tail, e.g N=1: FOO_BAR_ZOO => ZOO
     KeepTail(u8),
 }
 
@@ -48,6 +48,7 @@ impl StripMode {
                 eprintln!("{} Empty string {}", line!(), name);
                 name
             }
+            // If after first pass the name starts with a digit (illegal name) do another pass
             Some(c) if c.is_digit(10) => {
                 match self {
                     StripMode::StripFront(v) => StripMode::StripFront(v + 1),
@@ -61,6 +62,8 @@ impl StripMode {
 
 
 static ENUMS: Lazy<HashMap<&str, (&str, i32)>> = Lazy::new(|| {
+    // -N translates to StripMode::StripFront(N)
+    // N translates to StripMode::KeepFront(N)
     let mut map = HashMap::new();
     map.insert("HAPI_License", ("auto", -2));
     map.insert("HAPI_Result", ("HapiResult", 2));
@@ -166,7 +169,7 @@ fn main() {
         .rustfmt_bindings(true)
         .layout_tests(false)
         .raw_line(format!("// hapi-sys version {}", var("CARGO_PKG_VERSION").unwrap()));
-    let builder = if !cfg!(feature = "rustify") {
+    let builder = if cfg!(feature = "rustify") {
         let callbacks = Box::new(Rustifier {});
         builder.parse_callbacks(callbacks)
     } else { builder };
