@@ -1,6 +1,6 @@
 [package]
 name = "hapi-sys"
-version = "0.1.1"
+version = "0.1.2"
 license = "MIT"
 description = "Raw bindings to SideFx Houdini Engine API"
 authors = ["alexxbb <hou.alexx@gmail.com>"]

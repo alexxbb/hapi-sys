@@ -16,6 +16,8 @@
 //! `env LD_LIBRARY_PATH=$HDSO cargo test`  // on Linux
 //!
 //! `env DYLD_FALLBACK_LIBRARY_PATH=$HDSO cargo test` // on Mac
+//!
+//! On Windows, make sure $HFS/bin is in $PATH
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 #[cfg(test)]

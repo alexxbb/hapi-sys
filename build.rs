@@ -142,18 +142,24 @@ fn main() {
     let hfs = var("HFS").expect("HFS variable is not set");
     let include_dir = Path::new(&hfs).join("toolkit/include/HAPI");
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rustc-link-lib=dylib=HAPIL");
-    if cfg!(target_os = "macos"){
+    if cfg!(target_os = "macos") {
         let lib_dir = Path::new(&hfs).parent().unwrap().join("Libraries");
         println!("cargo:rustc-link-search=native={}", lib_dir.to_string_lossy());
+        println!("cargo:rustc-link-lib=dylib=HAPIL");
+    } else if cfg!(target_os = "windows"){
+        let lib_dir = Path::new(&hfs).join("custom/houdini/dsolib");
+        println!("cargo:rustc-link-search=native={}", lib_dir.to_string_lossy());
+        println!("cargo:rustc-link-lib=dylib=libHAPIL");
     } else {
+        println!("cargo:rustc-link-lib=dylib=HAPIL");
         println!("cargo:rustc-link-search=native={}/dsolib", hfs);
     }
     let out_path = PathBuf::from(var("OUT_DIR").unwrap()).join("bindings.rs");
 
     let builder = bindgen::Builder::default()
         .header("wrapper.h")
-        .clang_arg(format!("-I/{}", include_dir.to_string_lossy()))
+        .clang_arg(format!("-I{}", include_dir.to_string_lossy()))
+        .detect_include_paths(true)
         .default_enum_style("rust_non_exhaustive".parse().unwrap())
         .bitfield_enum("NodeType")
         .bitfield_enum("NodeFlags")
