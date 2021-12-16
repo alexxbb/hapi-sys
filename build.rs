@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env::var;
 use std::path::{
@@ -109,7 +110,9 @@ static ENUMS: Lazy<HashMap<&str, (&str, i32)>> = Lazy::new(|| {
 });
 
 #[derive(Debug)]
-struct Rustifier {}
+struct Rustifier {
+    visited: RefCell<HashMap<String, Vec<String>>>
+}
 
 impl ParseCallbacks for Rustifier {
     fn enum_variant_name(
@@ -120,9 +123,24 @@ impl ParseCallbacks for Rustifier {
     ) -> Option<String> {
         if _enum_name.is_none() { return None; };
         let name = _enum_name.unwrap().strip_prefix("enum ").expect("Not enum?");
-        let (_, mode) = ENUMS.get(name).expect(&format!("Missing enum: {}", name));
-        let mode = StripMode::new(*mode);
-        let striped = mode.strip_long_name(_variant_name);
+        self.visited.borrow_mut()
+            .entry(name.to_string())
+            .and_modify(|variants|variants.push(_variant_name.to_string()))
+            .or_default();
+        let (_, _mode) = ENUMS.get(name).expect(&format!("Missing enum: {}", name));
+        let mode = StripMode::new(*_mode);
+        let mut striped = mode.strip_long_name(_variant_name);
+        // Two stripped variant names can colliding with each other. We take a dumb approach by
+        // attempting one more strip with increased step
+        if let Some(vars) = self.visited.borrow_mut().get_mut(name) {
+            let _stripped = striped.to_string();
+            if vars.contains(&_stripped) {
+                let mode = StripMode::new(*_mode - 1);
+                striped = mode.strip_long_name(_variant_name);
+            } else {
+                vars.push(_stripped);
+            }
+        }
         Some(heck::CamelCase::to_camel_case(striped).to_owned())
     }
 
@@ -176,9 +194,10 @@ fn main() {
         .layout_tests(false)
         .raw_line(format!("// hapi-sys version {}", var("CARGO_PKG_VERSION").unwrap()));
     let builder = if cfg!(feature = "rustify") {
-        let callbacks = Box::new(Rustifier {});
+        let callbacks = Box::new(Rustifier { visited: Default::default()});
         builder.parse_callbacks(callbacks)
     } else { builder };
     builder.generate().expect("bindgen failed")
-    .write_to_file(out_path).expect("Could not write bindings to file");
+    .write_to_file(out_path.clone()).expect("Could not write bindings to file");
+    std::fs::copy(&out_path, std::env::current_dir().unwrap().join("bindings.rs")).unwrap();
 }
