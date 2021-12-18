@@ -1,6 +1,6 @@
 [package]
 name = "hapi-sys"
-version = "0.1.2"
+version = "0.1.3"
 license = "MIT"
 description = "Raw bindings to SideFx Houdini Engine API"
 authors = ["alexxbb <hou.alexx@gmail.com>"]
@@ -15,5 +15,5 @@ bindgen = "0.55.1"
 once_cell = "1.5.2"
 
 [features]
-default = []
+default = ["rustify"]
 rustify = []

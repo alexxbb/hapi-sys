@@ -1,9 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env::var;
-use std::path::{
-    Path, PathBuf,
-};
+use std::path::PathBuf;
 
 use bindgen::{
     callbacks::{EnumVariantValue, ParseCallbacks},
@@ -130,8 +128,8 @@ impl ParseCallbacks for Rustifier {
         let (_, _mode) = ENUMS.get(name).expect(&format!("Missing enum: {}", name));
         let mode = StripMode::new(*_mode);
         let mut striped = mode.strip_long_name(_variant_name);
-        // Two stripped variant names can colliding with each other. We take a dumb approach by
-        // attempting one more strip with increased step
+        // Two stripped variant names can collide with each other. We take a dumb approach by
+        // attempting to strip one more time with increased step
         if let Some(vars) = self.visited.borrow_mut().get_mut(name) {
             let _stripped = striped.to_string();
             if vars.contains(&_stripped) {
@@ -157,20 +155,20 @@ impl ParseCallbacks for Rustifier {
 }
 
 fn main() {
-    let hfs = var("HFS").expect("HFS variable is not set");
-    let include_dir = Path::new(&hfs).join("toolkit/include/HAPI");
+    let hfs = PathBuf::from(&var("HFS").expect("HFS variable is not set"));
+    let include_dir = hfs.join("toolkit/include/HAPI");
     println!("cargo:rerun-if-changed=build.rs");
     if cfg!(target_os = "macos") {
-        let lib_dir = Path::new(&hfs).parent().unwrap().join("Libraries");
+        let lib_dir = hfs.parent().unwrap().join("Libraries");
         println!("cargo:rustc-link-search=native={}", lib_dir.to_string_lossy());
         println!("cargo:rustc-link-lib=dylib=HAPIL");
     } else if cfg!(target_os = "windows"){
-        let lib_dir = Path::new(&hfs).join("custom/houdini/dsolib");
+        let lib_dir = hfs.join("custom/houdini/dsolib");
         println!("cargo:rustc-link-search=native={}", lib_dir.to_string_lossy());
         println!("cargo:rustc-link-lib=dylib=libHAPIL");
     } else {
         println!("cargo:rustc-link-lib=dylib=HAPIL");
-        println!("cargo:rustc-link-search=native={}/dsolib", hfs);
+        println!("cargo:rustc-link-search=native={}/dsolib", hfs.to_string_lossy());
     }
     let out_path = PathBuf::from(var("OUT_DIR").unwrap()).join("bindings.rs");
 
@@ -192,6 +190,7 @@ fn main() {
         .disable_name_namespacing()
         .rustfmt_bindings(true)
         .layout_tests(false)
+        .raw_line(format!("// Houdini version {}", hfs.file_name().unwrap().to_string_lossy()))
         .raw_line(format!("// hapi-sys version {}", var("CARGO_PKG_VERSION").unwrap()));
     let builder = if cfg!(feature = "rustify") {
         let callbacks = Box::new(Rustifier { visited: Default::default()});
