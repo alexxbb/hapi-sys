@@ -198,5 +198,5 @@ fn main() {
     } else { builder };
     builder.generate().expect("bindgen failed")
     .write_to_file(out_path.clone()).expect("Could not write bindings to file");
-    std::fs::copy(&out_path, std::env::current_dir().unwrap().join("bindings.rs")).unwrap();
+    println!("cargo:warning=Output: {}", &out_path.to_string_lossy());
 }
