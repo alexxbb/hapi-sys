@@ -3,9 +3,7 @@ use std::collections::HashMap;
 use std::env::var;
 use std::path::PathBuf;
 
-use bindgen::{
-    callbacks::{EnumVariantValue, ParseCallbacks},
-};
+use bindgen::callbacks::{EnumVariantValue, ParseCallbacks};
 use once_cell::sync::Lazy;
 
 #[derive(Debug, Copy, Clone)]
@@ -28,12 +26,8 @@ impl StripMode {
     pub fn strip_long_name<'a>(&self, name: &'a str) -> &'a str {
         let mut iter = name.match_indices('_');
         let elem = match self {
-            StripMode::KeepTail(i) => {
-                iter.nth_back((i - 1) as usize)
-            }
-            StripMode::StripFront(i) => {
-                iter.nth((i - 1) as usize)
-            }
+            StripMode::KeepTail(i) => iter.nth_back((i - 1) as usize),
+            StripMode::StripFront(i) => iter.nth((i - 1) as usize),
         };
         let new_name = match elem {
             Some((idx, _)) => &name[idx + 1..name.len()],
@@ -48,17 +42,15 @@ impl StripMode {
                 name
             }
             // If after first pass the name starts with a digit (illegal name) do another pass
-            Some(c) if c.is_digit(10) => {
-                match self {
-                    StripMode::StripFront(v) => StripMode::StripFront(v + 1),
-                    StripMode::KeepTail(v) => StripMode::KeepTail(v + 1),
-                }.strip_long_name(name)
+            Some(c) if c.is_digit(10) => match self {
+                StripMode::StripFront(v) => StripMode::StripFront(v + 1),
+                StripMode::KeepTail(v) => StripMode::KeepTail(v + 1),
             }
-            Some(_) => new_name
+            .strip_long_name(name),
+            Some(_) => new_name,
         }
     }
 }
-
 
 static ENUMS: Lazy<HashMap<&str, (&str, i32)>> = Lazy::new(|| {
     // -N translates to StripMode::StripFront(N)
@@ -68,7 +60,7 @@ static ENUMS: Lazy<HashMap<&str, (&str, i32)>> = Lazy::new(|| {
     map.insert("HAPI_Result", ("HapiResult", 2));
     map.insert("HAPI_StatusType", ("auto", -2));
     map.insert("HAPI_State", ("auto", 2));
-    map.insert("HAPI_PDG_WorkitemState", ("PdgWorkitemState", -1));
+    map.insert("HAPI_PDG_WorkItemState", ("PdgWorkItemState", -1));
     map.insert("HAPI_PDG_EventType", ("PdgEventType", -3));
     map.insert("HAPI_PDG_State", ("PdgState", -1));
     map.insert("HAPI_CacheProperty", ("auto", -2));
@@ -104,12 +96,14 @@ static ENUMS: Lazy<HashMap<&str, (&str, i32)>> = Lazy::new(|| {
     map.insert("HAPI_GroupType", ("auto", -1));
     map.insert("HAPI_PresetType", ("auto", -1));
     map.insert("HAPI_ChoiceListType", ("auto", -1));
+    map.insert("HAPI_InputCurveMethod", ("auto", -1));
+    map.insert("HAPI_InputCurveParameterization", ("auto", -1));
     map
 });
 
 #[derive(Debug)]
 struct Rustifier {
-    visited: RefCell<HashMap<String, Vec<String>>>
+    visited: RefCell<HashMap<String, Vec<String>>>,
 }
 
 impl ParseCallbacks for Rustifier {
@@ -119,11 +113,17 @@ impl ParseCallbacks for Rustifier {
         _variant_name: &str,
         _variant_value: EnumVariantValue,
     ) -> Option<String> {
-        if _enum_name.is_none() { return None; };
-        let name = _enum_name.unwrap().strip_prefix("enum ").expect("Not enum?");
-        self.visited.borrow_mut()
+        if _enum_name.is_none() {
+            return None;
+        };
+        let name = _enum_name
+            .unwrap()
+            .strip_prefix("enum ")
+            .expect("Not enum?");
+        self.visited
+            .borrow_mut()
             .entry(name.to_string())
-            .and_modify(|variants|variants.push(_variant_name.to_string()))
+            .and_modify(|variants| variants.push(_variant_name.to_string()))
             .or_default();
         let (_, _mode) = ENUMS.get(name).expect(&format!("Missing enum: {}", name));
         let mode = StripMode::new(*_mode);
@@ -139,13 +139,15 @@ impl ParseCallbacks for Rustifier {
                 vars.push(_stripped);
             }
         }
-        Some(heck::CamelCase::to_camel_case(striped).to_owned())
+        Some(heck::AsUpperCamelCase(striped).to_string())
     }
 
     fn item_name(&self, _item_name: &str) -> Option<String> {
         if let Some((rename, _)) = ENUMS.get(_item_name) {
             let new_name = match *rename {
-                "auto" => _item_name.strip_prefix("HAPI_").expect(&format!("{} - not a HAPI enum?", rename)),
+                "auto" => _item_name
+                    .strip_prefix("HAPI_")
+                    .expect(&format!("{} - not a HAPI enum?", rename)),
                 n => n,
             };
             return Some(new_name.to_string());
@@ -160,15 +162,24 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     if cfg!(target_os = "macos") {
         let lib_dir = hfs.parent().unwrap().join("Libraries");
-        println!("cargo:rustc-link-search=native={}", lib_dir.to_string_lossy());
+        println!(
+            "cargo:rustc-link-search=native={}",
+            lib_dir.to_string_lossy()
+        );
         println!("cargo:rustc-link-lib=dylib=HAPIL");
-    } else if cfg!(target_os = "windows"){
+    } else if cfg!(target_os = "windows") {
         let lib_dir = hfs.join("custom/houdini/dsolib");
-        println!("cargo:rustc-link-search=native={}", lib_dir.to_string_lossy());
+        println!(
+            "cargo:rustc-link-search=native={}",
+            lib_dir.to_string_lossy()
+        );
         println!("cargo:rustc-link-lib=dylib=libHAPIL");
     } else {
         println!("cargo:rustc-link-lib=dylib=HAPIL");
-        println!("cargo:rustc-link-search=native={}/dsolib", hfs.to_string_lossy());
+        println!(
+            "cargo:rustc-link-search=native={}/dsolib",
+            hfs.to_string_lossy()
+        );
     }
     let out_path = PathBuf::from(var("OUT_DIR").unwrap()).join("bindings.rs");
 
@@ -190,13 +201,39 @@ fn main() {
         .disable_name_namespacing()
         .rustfmt_bindings(true)
         .layout_tests(false)
-        .raw_line(format!("// Houdini version {}", hfs.file_name().unwrap().to_string_lossy()))
-        .raw_line(format!("// hapi-sys version {}", var("CARGO_PKG_VERSION").unwrap()));
+        .raw_line(format!(
+            "// Houdini version {}",
+            hfs.file_name().unwrap().to_string_lossy()
+        ))
+        .raw_line(format!(
+            "// hapi-sys version {}",
+            var("CARGO_PKG_VERSION").unwrap()
+        ));
     let builder = if cfg!(feature = "rustify") {
-        let callbacks = Box::new(Rustifier { visited: Default::default()});
+        let callbacks = Box::new(Rustifier {
+            visited: Default::default(),
+        });
         builder.parse_callbacks(callbacks)
-    } else { builder };
-    builder.generate().expect("bindgen failed")
-    .write_to_file(out_path.clone()).expect("Could not write bindings to file");
-    println!("cargo:warning=Output: {}", &out_path.to_string_lossy());
+    } else {
+        builder
+    };
+    builder
+        .generate()
+        .expect("bindgen failed")
+        .write_to_file(out_path.clone())
+        .expect("Could not write bindings to file");
+    let link = out_path
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("bindings.rs");
+    if let Err(e) = std::fs::hard_link(&out_path, &link) {
+        if e.kind() != std::io::ErrorKind::AlreadyExists {
+            panic!("Could not create link: {}", &link.to_string_lossy());
+        }
+    }
+    println!("cargo:warning=Output: {}", &link.to_string_lossy());
 }
